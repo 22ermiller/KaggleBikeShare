@@ -26,12 +26,12 @@ bake(prepped_recipe, bike_test)
 # Set up Linear Regression ------------------------------------------------
 
 
-my_mod <- linear_reg() %>%
+lin_mod <- linear_reg() %>%
   set_engine("lm") # linear regression model
 
 bike_workflow <- workflow() %>%
   add_recipe(my_recipe) %>% 
-  add_model(my_mod) %>%
+  add_model(lin_mod) %>%
   fit(data = bike_train)
 
 # Make predictions
@@ -46,3 +46,25 @@ final_predictions$datetime <- as.character(format(final_predictions$datetime))
 
 vroom_write(final_predictions, "final_predictions.csv", delim = ",")
 
+
+
+# Poisson Regression ------------------------------------------------------
+
+library(poissonreg)
+
+pois_mod <- poisson_reg() %>%
+  set_engine("glm") # linear regression model
+
+bike_pois_workflow <- workflow() %>%
+  add_recipe(my_recipe) %>% 
+  add_model(pois_mod) %>%
+  fit(data = bike_train)
+
+bike_pois_predictions <- predict(bike_pois_workflow,
+                                 new_data = bike_test)
+
+final_pois_predictions <- tibble(datetime = bike_test$datetime, count = bike_pois_predictions$.pred)
+
+final_pois_predictions$datetime <- as.character(format(final_pois_predictions$datetime))
+
+vroom_write(final_pois_predictions, "final_pois_predictions.csv", delim = ",")
