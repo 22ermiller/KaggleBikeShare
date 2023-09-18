@@ -53,7 +53,7 @@ vroom_write(final_predictions, "final_predictions.csv", delim = ",")
 library(poissonreg)
 
 pois_mod <- poisson_reg() %>%
-  set_engine("glm") # linear regression model
+  set_engine("glm") # poisson regression model
 
 bike_pois_workflow <- workflow() %>%
   add_recipe(my_recipe) %>% 
