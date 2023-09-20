@@ -68,3 +68,44 @@ final_pois_predictions <- tibble(datetime = bike_test$datetime, count = bike_poi
 final_pois_predictions$datetime <- as.character(format(final_pois_predictions$datetime))
 
 vroom_write(final_pois_predictions, "final_pois_predictions.csv", delim = ",")
+
+# Penalized Regression ----------------------------------------------------
+
+# for log transformation, making training set response log(y)
+
+bike_train_log <- bike_train %>%
+  mutate(count = log(count))
+
+# create new recipe
+
+penalized_recipe <- recipe(count~., data = bike_train) %>%
+  step_mutate(weather = ifelse(weather == 4, 3, weather)) %>%
+  step_mutate(weather = as.factor(weather),
+              season = as.factor(season),
+              workingday = as.factor(workingday),
+              holiday = as.factor(holiday)) %>%
+  step_time(datetime, features= c("hour")) %>%
+  step_rm(datetime) %>%
+  step_dummy(all_nominal_predictors()) %>%
+  step_normalize(all_numeric_predictors())
+
+# Penalized Regression Model
+penalized_model <- linear_reg(penalty = 0, mixture = 0) %>% # Set model and Tuning
+  set_engine("glmnet") # Function to fit in R
+
+penalized_workflow <- workflow() %>%
+  add_recipe(penalized_recipe) %>%
+  add_model(penalized_model) %>%
+  fit(data = bike_train_log)
+
+predict(penalized_workflow, new_data = bike_test)
+
+bike_penalized_predictions <- predict(penalized_workflow, 
+                                 new_data = bike_test)
+
+final_penalized_predictions <- tibble(datetime = bike_test$datetime, count = exp(bike_penalized_predictions$.pred))
+
+final_penalized_predictions$datetime <- as.character(format(final_penalized_predictions$datetime))
+
+vroom_write(final_penalized_predictions, "final_penalized_predictions.csv", delim = ",")
+
