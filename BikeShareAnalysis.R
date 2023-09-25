@@ -17,7 +17,11 @@ my_recipe <- recipe(count~., data = bike_train) %>%
               season = as.factor(season),
               workingday = as.factor(workingday),
               holiday = as.factor(holiday)) %>%
-  step_time(datetime, features= c("hour"))
+  step_date(datetime, features=c("dow")) %>%
+  step_time(datetime, features= c("hour", "am")) %>%
+  step_poly(temp, degree=4) %>%
+  step_dummy(all_nominal_predictors()) %>%
+  step_normalize(all_numeric_predictors())
 
 prepped_recipe <- prep(my_recipe)
 bake(prepped_recipe, bike_test)
@@ -32,7 +36,7 @@ lin_mod <- linear_reg() %>%
 bike_workflow <- workflow() %>%
   add_recipe(my_recipe) %>% 
   add_model(lin_mod) %>%
-  fit(data = bike_train)
+  fit(data = bike_train_log)
 
 # Make predictions
 
@@ -40,7 +44,7 @@ bike_predictions <- predict(bike_workflow,
                             new_data =bike_test) %>%
   mutate(preds = ifelse(.pred < 0, 0, .pred))
 
-final_predictions <- tibble(datetime = bike_test$datetime, count = bike_predictions$preds)
+final_predictions <- tibble(datetime = bike_test$datetime, count = exp(bike_predictions$preds))
 
 final_predictions$datetime <- as.character(format(final_predictions$datetime))
 
@@ -84,7 +88,9 @@ penalized_recipe <- recipe(count~., data = bike_train) %>%
               season = as.factor(season),
               workingday = as.factor(workingday),
               holiday = as.factor(holiday)) %>%
+  step_date(datetime, features="dow") %>%
   step_time(datetime, features= c("hour")) %>%
+  step_poly(temp, degree=4) %>% 
   step_rm(datetime) %>%
   step_dummy(all_nominal_predictors()) %>%
   step_normalize(all_numeric_predictors())
