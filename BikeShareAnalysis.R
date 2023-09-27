@@ -166,3 +166,76 @@ final_penalized_predictions <- tibble(datetime = bike_test$datetime, count = exp
 final_penalized_predictions$datetime <- as.character(format(final_penalized_predictions$datetime))
 
 vroom_write(final_penalized_predictions, "final_penalized_predictions.csv", delim = ",")
+
+
+# Regression Tree ---------------------------------------------------------
+
+tree_recipe <- recipe(count~., data = bike_train) # set up recipe (for regression trees, not much data wrangling)
+
+tree_model <- decision_tree(tree_depth = tune(),
+                            cost_complexity = tune(),
+                            min_n = tune()) %>%
+  set_engine("rpart") %>%
+  set_mode("regression")
+
+tree_wf <- workflow() %>%
+  add_recipe(tree_recipe) %>%
+  add_model(tree_model)
+
+# Grid of values to tune over
+tuning_grid <- grid_regular(tree_depth(),
+                            cost_complexity(),
+                            min_n(),
+                            levels = 5)
+
+# Split data for cross validation
+folds <- vfold_cv(bike_train_log, v = 10, repeats = 1)
+
+# Run the cross validation
+cv_results <- tree_wf %>%
+  tune_grid(resamples = folds,
+            grid = tuning_grid,
+            metrics = metric_set(rmse,mae,rsq)) # here pick the metrics you are interested in
+
+# Plot results
+collect_metrics(cv_results) %>%
+  filter(.metric == "rmse") %>%
+  ggplot(data = ., aes(x = tree_depth, y = mean, color = factor(min_n))) +
+  geom_line()
+
+# find best tuning parameters
+
+bestTune <- cv_results %>%
+  select_best("rmse")
+
+
+# finalize workflow
+
+final_wf <- tree_wf %>%
+  finalize_workflow(bestTune) %>%
+  fit(data = bike_train_log)
+
+# predict
+bike_tree_predicions <- predict(final_wf, 
+                                      new_data = bike_test)
+
+final_tree_predictions <- tibble(datetime = bike_test$datetime, count = exp(bike_tree_predicions$.pred))
+
+final_tree_predictions$datetime <- as.character(format(final_tree_predictions$datetime))
+
+vroom_write(final_tree_predictions, "final_tree_predictions.csv", delim = ",")
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
