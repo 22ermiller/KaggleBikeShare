@@ -226,6 +226,58 @@ final_tree_predictions$datetime <- as.character(format(final_tree_predictions$da
 vroom_write(final_tree_predictions, "final_tree_predictions.csv", delim = ",")
 
 
+# Random Forests ----------------------------------------------------------
+
+forest_mod <- rand_forest(mtry = tune(),
+                          min_n = tune(),
+                          trees = 500) %>%
+  set_engine("ranger") %>%
+  set_mode("regression")
+
+forest_wf <- workflow() %>%
+  add_recipe(my_recipe) %>%
+  add_model(forest_mod)
+
+# Grid of values to tune over
+tuning_grid <- grid_regular(mtry(range = c(1,10)),
+                            min_n())
+
+# Split data for cross validation
+folds <- vfold_cv(bike_train_log, v = 10, repeats = 1)
+
+# Run the cross validation
+cv_results <- forest_wf %>%
+  tune_grid(resamples = folds,
+            grid = tuning_grid,
+            metrics = metric_set(rmse,mae,rsq)) # here pick the metrics you are interested in
+
+# Plot results
+collect_metrics(cv_results) %>%
+  filter(.metric == "rmse") %>%
+  ggplot(data = ., aes(x = tree_depth, y = mean, color = factor(min_n))) +
+  geom_line()
+
+# find best tuning parameters
+
+bestTune <- cv_results %>%
+  select_best("rmse")
+
+
+# finalize workflow
+
+final_wf <- forest_wf %>%
+  finalize_workflow(bestTune) %>%
+  fit(data = bike_train_log)
+
+# predict
+bike_forest_predictions <- predict(final_wf, 
+                                new_data = bike_test)
+
+final_forest_predictions <- tibble(datetime = bike_test$datetime, count = exp(bike_forest_predictions$.pred))
+
+final_forest_predictions$datetime <- as.character(format(final_forest_predictions$datetime))
+
+vroom_write(final_forest_predictions, "final_forest_predictions.csv", delim = ",")
 
 
 
